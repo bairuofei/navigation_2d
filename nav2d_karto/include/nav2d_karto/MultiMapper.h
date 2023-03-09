@@ -78,6 +78,7 @@ private:
 	double mMapResolution;      // Resolution of published grid map.
 	double mRangeThreshold;     // Maximum range of laser sensor. (All robots MUST use the same due to Karto-Mapper!)
 	double mMaxCovariance;      // When to accept the result of the particle filter?
+	// used to indicate node's state
 	int mState;	                // What am I doing? (waiting, localizing, mapping)
 	int mMapUpdateRate;	        // Publish the map every # received updates.
 	bool mPublishPoseGraph;	    // Whether or not to publish the pose graph as marker-message.

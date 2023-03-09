@@ -33,11 +33,13 @@ typedef std::pair<double,unsigned int> Entry;
 
 int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsigned int &goal)
 {
+	// This function finds clustered frontiers as exploration target.
 	// Create some workspace for the wavefront algorithm
 	unsigned int mapSize = map->getSize();
 	if(mPlan)
 		delete[] mPlan;
-	mPlan = new double[mapSize];
+	mPlan = new double[mapSize];  // Used to store the distance from current cell to each cell
+	// Initialize map to be unknown
 	for(unsigned int i = 0; i < mapSize; i++)
 	{
 		mPlan[i] = -1;
@@ -83,7 +85,7 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 		for(unsigned int it = 0; it < 4; it++)
 		{
 			unsigned int i = index + mOffset[it];
-			if(mPlan[i] == -1 && map->isFree(i))
+			if(mPlan[i] == -1 && map->isFree(i))  // Only free cell will check whether is frontier or not
 			{
 				// Check if it is a frontier cell
 				if(map->isFrontier(i))
@@ -91,7 +93,7 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 					findCluster(map, i);
 				}else
 				{
-					queue.insert(Entry(distance+linear, i));
+					queue.insert(Entry(distance+linear, i));  // Add into queue to search for frontier
 				}
 				mPlan[i] = distance+linear;
 			}
@@ -99,6 +101,19 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 	}
 
 	ROS_DEBUG("[MinPos] Found %d frontier cells in %d frontiers.", mFrontierCells, (int)mFrontiers.size());
+
+	// Remove small frontiers
+	int num_small_front = 0;
+	for(int k = 0; k < (int)mFrontiers.size(); k++){
+		if(mFrontiers[k].size() < 5){
+			mFrontiers.erase(mFrontiers.begin()+k);
+      		k--;
+			num_small_front++;
+		}
+	}
+	ROS_INFO("Small Frontiers %d are removed.", num_small_front);
+
+
 	if(mFrontiers.size() == 0)
 	{
 		if(cellCount > 50)
@@ -110,6 +125,7 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 			return EXPL_FAILED;
 		}
 	}
+
 	
 	// Publish frontiers as marker for RVIZ
 	if(mVisualizeFrontiers)
@@ -173,7 +189,7 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 	
 	// 2. Computation of the distances to frontiers
 	unsigned int bestRank = 9999;
-	unsigned int bestFrontier = 0;
+	unsigned int bestFrontier = 0;  // frontier index
 	double bestDistance = 9999;
 	
 	// Get positions of other robots
@@ -196,13 +212,14 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 	}
 	ROS_DEBUG("[MinPos] Using known positions of %d other robots.", (int)indices.size());
 	
+	// Traversing all frontier to find closest frontier
 	for(unsigned int frontier = 0; frontier < mFrontiers.size(); frontier++)
 	{
 		// Reset the plan
 		double* plan = new double[mapSize];
 		for(unsigned int i = 0; i < mapSize; i++) plan[i] = -1;
 		Queue frontQueue;
-		unsigned int rank = 0;
+		unsigned int rank = 0;  // Sort the distance of all frontiers for all robots, rank = 0 is the shortest for current robot
 		double distanceToRobot = -1;
 		
 		// Add all cells of current frontier
@@ -266,7 +283,8 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 }
 
 void MinPosPlanner::findCluster(GridMap* map, unsigned int startCell)
-{
+{	
+	//Given a frontier cell, expand it into a frontier cluster
 	// Create a new frontier and expand it
 	Frontier front;
 	int frontNumber = -2 - mFrontiers.size();
@@ -289,7 +307,7 @@ void MinPosPlanner::findCluster(GridMap* map, unsigned int startCell)
 		unsigned int x, y;
 		frontQueue.erase(next);
 		
-		// Check if it is a frontier cell
+		// Check if it is a frontier cell by inspecting its neighboring 8 cells
 		if(!map->isFrontier(index)) continue;
 		
 		// Add it to current frontier
@@ -300,7 +318,9 @@ void MinPosPlanner::findCluster(GridMap* map, unsigned int startCell)
 		for(unsigned int it = 0; it < 4; it++)
 		{
 			int i = index + mOffset[it];
-			if(map->isFree(i) && mPlan[i] == -1)
+			// Only insert free and initially unknown cell into the queue
+			// isFree means in current occupancy map, the cell is free
+			if(map->isFree(i) && mPlan[i] == -1)  
 			{
 				mPlan[i] = distance + map->getResolution();
 				frontQueue.insert(Entry(distance + map->getResolution(), i));

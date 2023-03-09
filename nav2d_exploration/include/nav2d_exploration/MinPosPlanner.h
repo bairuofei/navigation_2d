@@ -23,7 +23,7 @@ private:
         
         // Components
         RobotList mRobotList;
-        FrontierList mFrontiers;
+        FrontierList mFrontiers;  // Store frontier
         double* mPlan;
         unsigned int mFrontierCells;
 

@@ -78,20 +78,43 @@ public:
 	}
 
 	bool isFrontier(unsigned int index)
-	{
+	{	
+		// isFrontier only if the unknown cell is larger than obstacle cell
 		int y = index / mMapWidth;
 		int x = index % mMapWidth;
-		
-		if(getData(x-1, y-1) == -1) return true;
-		if(getData(x-1, y  ) == -1) return true;
-		if(getData(x-1, y+1) == -1) return true;
-		if(getData(x  , y-1) == -1) return true;
-		if(getData(x  , y+1) == -1) return true;
-		if(getData(x+1, y-1) == -1) return true;
-		if(getData(x+1, y  ) == -1) return true;
-		if(getData(x+1, y+1) == -1) return true;
-		
+		std::vector<std::pair<int, int>> dir;
+		dir.push_back(std::pair<int, int>(-1, -1));
+		dir.push_back(std::pair<int, int>(-1, 0));
+		dir.push_back(std::pair<int, int>(-1, 1));
+		dir.push_back(std::pair<int, int>(0, -1));
+		dir.push_back(std::pair<int, int>(0, 1));
+		dir.push_back(std::pair<int, int>(1, -1));
+		dir.push_back(std::pair<int, int>(1, 0));
+		dir.push_back(std::pair<int, int>(1, 1));
+
+		int unknown_cell = 0;
+		int obstacle_cell = 0;
+		for(std::pair<int, int>& delta: dir){
+			if(getData(x+delta.first, y+delta.second) == -1)
+				unknown_cell++;
+			else if(getData(x+delta.first, y+delta.second) >= 85){
+				ROS_INFO("One obstacle cell counted.");
+				obstacle_cell++;
+			}
+		}
+		if(unknown_cell > 0 && unknown_cell > obstacle_cell)
+			return true;
 		return false;
+
+		// if(getData(x-1, y-1) == -1) return true;
+		// if(getData(x-1, y  ) == -1) return true;
+		// if(getData(x-1, y+1) == -1) return true;
+		// if(getData(x  , y-1) == -1) return true;
+		// if(getData(x  , y+1) == -1) return true;
+		// if(getData(x+1, y-1) == -1) return true;
+		// if(getData(x+1, y  ) == -1) return true;
+		// if(getData(x+1, y+1) == -1) return true;
+		
 	}
 	
 	/** Gets indices of all free neighboring cells with given offset */ 

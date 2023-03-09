@@ -23,8 +23,8 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "GetFirstMap");
 	ros::NodeHandle n;
 	
-	ros::ServiceServer cmdServer = n.advertiseService(NAV_GETMAP_SERVICE, &receiveCommand);
-	gGetMapClient = new GetMapClient(NAV_GETMAP_ACTION, true);
+	ros::ServiceServer cmdServer = n.advertiseService(NAV_GETMAP_SERVICE, &receiveCommand); // #define NAV_GETMAP_SERVICE  "StartMapping"
+	gGetMapClient = new GetMapClient(NAV_GETMAP_ACTION, true);   // #define NAV_GETMAP_ACTION   "GetFirstMap"
 	gGetMapClient->waitForServer();
 	
 	ros::spin();

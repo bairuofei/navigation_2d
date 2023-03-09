@@ -301,13 +301,13 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 		tf::StampedTransform tfPose;
 		try
 		{
-			mTransformListener.lookupTransform(mOffsetFrame, mLaserFrame, scan->header.stamp, tfPose);
+			mTransformListener.lookupTransform(mOffsetFrame, mLaserFrame, scan->header.stamp, tfPose);  // Find tf at the same time stamp
 		}
 		catch(tf::TransformException e)
 		{
 			try
 			{
-				mTransformListener.lookupTransform(mOffsetFrame, mLaserFrame, ros::Time(0), tfPose);
+				mTransformListener.lookupTransform(mOffsetFrame, mLaserFrame, ros::Time(0), tfPose);  // otherwise find the latest available transform
 			}
 			catch(tf::TransformException e)
 			{

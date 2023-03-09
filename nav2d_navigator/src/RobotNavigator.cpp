@@ -19,7 +19,7 @@ RobotNavigator::RobotNavigator()
 
 	mGetMapClient = robotNode.serviceClient<nav_msgs::GetMap>("get_map");
 
-	mCommandPublisher = robotNode.advertise<nav2d_operator::cmd>("cmd", 1);
+	mCommandPublisher = robotNode.advertise<nav2d_operator::cmd>("cmd", 1);  // navigator publish cmd command, will be transformed to cmd_vel by actionlib
 	mStopServer = robotNode.advertiseService(NAV_STOP_SERVICE, &RobotNavigator::receiveStop, this);
 	mPauseServer = robotNode.advertiseService(NAV_PAUSE_SERVICE, &RobotNavigator::receivePause, this);
 	mCurrentPlan = NULL;
@@ -77,7 +77,7 @@ RobotNavigator::RobotNavigator()
 	if(mRobotID == 1)
 	{
 		mGetMapActionServer = new GetMapActionServer(NAV_GETMAP_ACTION, boost::bind(&RobotNavigator::receiveGetMapGoal, this, _1), false);
-		mGetMapActionServer->start();
+		mGetMapActionServer->start();  // this is an action server, waiting for GetMapGoal
 	}else
 	{
 		mGetMapActionServer = NULL;
@@ -537,13 +537,13 @@ void RobotNavigator::receiveGetMapGoal(const nav2d_navigator::GetFirstMapGoal::C
 	{
 		if(!ok() || mGetMapActionServer->isPreemptRequested() || mIsStopped)
 		{
-			ROS_INFO("GetFirstMap has been preempted externally.");
+			ROS_INFO("GetFirstMap has been preempted externally."); // 抢占
 			mGetMapActionServer->setPreempted();
 			stop();
 			return;
 		}
 		
-		setCurrentPosition();
+		setCurrentPosition();  // Update position, whether success or not is not awared
 		double deltaTheta = mCurrentDirection - lastDirection;
 		while(deltaTheta < -PI) deltaTheta += 2*PI;
 		while(deltaTheta >  PI) deltaTheta -= 2*PI;
@@ -921,7 +921,8 @@ bool RobotNavigator::setCurrentPosition()
 {
 	StampedTransform transform;
 	try
-	{
+	{	
+		// mMapFrame is the frame_id, mRobotFrame is the child frame id
 		mTfListener.lookupTransform(mMapFrame, mRobotFrame, Time(0), transform);
 	}catch(TransformException ex)
 	{
