@@ -371,10 +371,27 @@ namespace karto
       m_pLabel = pLabel;
     }
 
+    // buffa defines:
+    inline void AddCovariance(const Matrix3& covariance)
+    {
+      m_covariance = covariance;
+    }
+
+    inline std::string GetCovariance()
+    {
+      return m_covariance.ToStlString();
+    }
+
+    inline std::vector<double> GetCovarianceVector()
+    {
+      return m_covariance.ToVector();
+    }
+
   private:
     Vertex<T>* m_pSource;
     Vertex<T>* m_pTarget;
     EdgeLabel* m_pLabel;
+    Matrix3 m_covariance;
   }; // class Edge<T>
 
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -574,6 +591,8 @@ namespace karto
      * Destructor
      */
     virtual ~MapperGraph();
+
+    int a;
     
   public:
     /**
@@ -645,6 +664,8 @@ namespace karto
      * @param rCovariance match uncertainty
      */
     void LinkChainToScan(const LocalizedLaserScanList& rChain, LocalizedLaserScan* pScan, const Pose2& rMean, const Matrix3& rCovariance);
+
+    std::vector<std::tuple<int, int>> covariance_lists;
     
   private:
     /**
@@ -1546,6 +1567,9 @@ namespace karto
      * @param multiThreaded
      */
     OpenMapper(const char* pName, kt_bool multiThreaded = true);
+
+    // My definition
+    // int a;
 
   public:
     /**

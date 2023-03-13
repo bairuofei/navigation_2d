@@ -25,6 +25,7 @@
 #include <OpenKarto/Math.h>
 
 #include <string.h>
+#include <vector>
 
 namespace karto
 {
@@ -2686,6 +2687,37 @@ namespace karto
       
       return valueString;
     }
+
+    inline std::string ToStlString() 
+    {
+      std::string valueString;
+
+      for (int row = 0; row < 3; row++)
+      {
+        for (int col = 0; col < 3; col++)
+        {
+          valueString += std::to_string(m_Matrix[row][col]);
+          valueString += " ";
+        }
+      }
+      
+      return valueString;
+    }
+
+    inline std::vector<double> ToVector()
+    {
+      std::vector<double> ret;
+      for (int row = 0; row < 3; row++)
+      {
+        for (int col = 0; col < 3; col++)
+        {
+          ret.push_back(m_Matrix[row][col]);
+        }
+      }
+      return ret;
+    }
+    
+
 
   public:
     /**

@@ -166,6 +166,7 @@ MultiMapper::MultiMapper()
 		ROS_INFO("Initialized robot %d, waiting for map from robot 1 now.", mRobotID);
 		mSelfLocalizer = new SelfLocalizer();
 	}
+	std::cout << "Create multimapper!!" << std::endl;
 }
 
 MultiMapper::~MultiMapper()
@@ -407,8 +408,16 @@ bool MultiMapper::sendMap()
 	if(!updateMap()) return false;
 	
 	// Publish the map
+	ROS_WARN(" - -------------------------------------");
 	mMapPublisher.publish(mGridMap);
 	mLastMapUpdate = ros::WallTime::now();
+
+	//FIXME: test covariance store
+	int b = mMapper->GetGraph()->a;
+
+	// int a = (int)(mMapper->covariance_lists.size());
+	ROS_WARN("GET COVARIANCE LISTS, SIZE %d", b);
+	
 
 	// Publish the pose-graph
 	if(mPublishPoseGraph)
@@ -467,6 +476,10 @@ bool MultiMapper::sendMap()
 			marker.points[2*i+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
 			marker.points[2*i+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[2*i+1].z = 0;
+			if(i % 4 == 0){
+				std::vector<double> cov = edges[i]->GetCovarianceVector();
+				ROS_WARN("I get covariance: %f", cov[0]);
+			}
 		}
 		mEdgesPublisher.publish(marker);
 	}

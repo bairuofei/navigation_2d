@@ -105,7 +105,7 @@ int MinPosPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsig
 	// Remove small frontiers
 	int num_small_front = 0;
 	for(int k = 0; k < (int)mFrontiers.size(); k++){
-		if(mFrontiers[k].size() < 5){
+		if(mFrontiers[k].size() <= 10){
 			mFrontiers.erase(mFrontiers.begin()+k);
       		k--;
 			num_small_front++;

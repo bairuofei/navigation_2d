@@ -2,7 +2,6 @@
 
 #include <nav2d_karto/MultiMapper.h>
 #include <nav2d_karto/SpaSolver.h>
-#include <nav2d_karto/SpaSolver.h>
 
 int main(int argc, char **argv)
 {

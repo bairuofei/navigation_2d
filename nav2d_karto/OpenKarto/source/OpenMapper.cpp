@@ -1681,6 +1681,10 @@ namespace karto
   {
     kt_bool isNewEdge = true;
     Edge<LocalizedObjectPtr>* pEdge = AddEdge(pFromObject, pToObject, isNewEdge);
+    pEdge->AddCovariance(rCovariance);
+    // std::tuple<int, int> curr_edge_cov(1, 2);
+    // covariance_lists.push_back(curr_edge_cov);
+    a = 128;
     
     // only attach link information if the edge is new
     if (isNewEdge == true)

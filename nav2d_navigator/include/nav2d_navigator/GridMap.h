@@ -79,9 +79,14 @@ public:
 
 	bool isFrontier(unsigned int index)
 	{	
-		// isFrontier only if the unknown cell is larger than obstacle cell
 		int y = index / mMapWidth;
 		int x = index % mMapWidth;
+		//TODO: check whether current index locates at the edge of map
+		// if(y == 0 || y == mMapHeight - 1 || x == 0 || x == mMapWidth - 1){
+		// 	return false;
+		// }
+
+		// isFrontier only if the unknown cell is larger than obstacle cell
 		std::vector<std::pair<int, int>> dir;
 		dir.push_back(std::pair<int, int>(-1, -1));
 		dir.push_back(std::pair<int, int>(-1, 0));
@@ -95,9 +100,16 @@ public:
 		int unknown_cell = 0;
 		int obstacle_cell = 0;
 		for(std::pair<int, int>& delta: dir){
-			if(getData(x+delta.first, y+delta.second) == -1)
+			int neighbor_x, neighbor_y;
+			neighbor_x = x + delta.first;
+			neighbor_y = y + delta.second;
+			if(neighbor_x < 0 || neighbor_x >= mMapWidth)
+				continue;
+			if(neighbor_y < 0 || neighbor_y >= mMapHeight)
+				continue;
+			if(getData(neighbor_x, neighbor_y) == -1)
 				unknown_cell++;
-			else if(getData(x+delta.first, y+delta.second) >= 85){
+			else if(getData(neighbor_x, neighbor_y) >= 85){
 				ROS_INFO("One obstacle cell counted.");
 				obstacle_cell++;
 			}
@@ -106,6 +118,7 @@ public:
 			return true;
 		return false;
 
+		// In original version, cells on the edge are also treated as frontier
 		// if(getData(x-1, y-1) == -1) return true;
 		// if(getData(x-1, y  ) == -1) return true;
 		// if(getData(x-1, y+1) == -1) return true;
@@ -161,7 +174,7 @@ public:
 	signed char getData(int x, int y)
 	{
 		if(x < 0 ||x >= (int)mMapWidth || y < 0 || y >= (int)mMapHeight)
-			return -1;
+			return -1;  // If out of current map, then set to be unknown
 		else
 			return mOccupancyGrid.data[y*mMapWidth + x];
 	}

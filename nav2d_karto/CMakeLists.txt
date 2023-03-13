@@ -50,6 +50,7 @@ include_directories(
   OpenKarto/source
   ${EIGEN3_INCLUDE_DIR}
   ${TBB_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/OpenKarto/source/OpenKarto
 )
 
 ## Build OpenKarto library
@@ -102,6 +103,8 @@ include_directories(
   ${CSPARSE_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
+message("---------------------------------")
+message(${catkin_INCLUDE_DIRS})
 add_library(MultiMapper src/MultiMapper.cpp)
 target_link_libraries(MultiMapper OpenKarto ${catkin_LIBRARIES})
 
@@ -120,6 +123,7 @@ add_executable(mapper
 	src/SpaSolver.cpp
 	src/spa2d.cpp
 	src/csparse.cpp
+  ${KARTO_SOURCE_FILES}
 )
 
 target_link_libraries(mapper MultiMapper ${CSPARSE_LIBRARY} ${catkin_LIBRARIES})
