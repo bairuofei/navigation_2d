@@ -2,6 +2,7 @@
 #define MULTI_MAPPER_H
 
 #include <ros/ros.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -67,6 +68,9 @@ private:
 	ros::Subscriber mScanSubscriber;
 	ros::Subscriber mInitialPoseSubscriber;
 
+	// publish covariance
+	ros::Publisher mCovPublisher;
+
 	// Everything related to KARTO
 	karto::LaserRangeFinderPtr mLaser;
 	karto::SmartPointer<karto::OpenMapper> mMapper;
@@ -92,6 +96,11 @@ private:
 	std::string mOdometryFrame;
 	std::string mOffsetFrame;
 	std::string mMapFrame;
+
+	// Store edges and covariance
+	// node1_id, node2_id, upper triangle of the covariance matrix (6 elements)
+	// 8 data for an edge
+	std_msgs::Float64MultiArray cov_msg;
 };
 
 #endif

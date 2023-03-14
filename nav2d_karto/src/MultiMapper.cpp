@@ -45,6 +45,9 @@ MultiMapper::MultiMapper()
 	mEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("edges", 1, true);
 	mPosePublisher = robotNode.advertise<geometry_msgs::PoseStamped>("localization_result", 1, true);
 
+	// Pub covariance
+	mCovPublisher = robotNode.advertise<std_msgs::Float64MultiArray>("slam_edge_cov", 2);
+
 	// Initialize KARTO-Mapper
 	mMapper = new karto::OpenMapper(true);
 	
@@ -408,15 +411,8 @@ bool MultiMapper::sendMap()
 	if(!updateMap()) return false;
 	
 	// Publish the map
-	ROS_WARN(" - -------------------------------------");
 	mMapPublisher.publish(mGridMap);
 	mLastMapUpdate = ros::WallTime::now();
-
-	//FIXME: test covariance store
-	int b = mMapper->GetGraph()->a;
-
-	// int a = (int)(mMapper->covariance_lists.size());
-	ROS_WARN("GET COVARIANCE LISTS, SIZE %d", b);
 	
 
 	// Publish the pose-graph
@@ -446,11 +442,19 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(vertices.Size());
 		
+		// Clear previous edge info
+		cov_msg.data.clear();
+		cov_msg.data.push_back(vertices.Size());
 		for(int i = 0; i < vertices.Size(); i++)
 		{
 			marker.points[i].x = vertices[i]->GetVertexObject()->GetCorrectedPose().GetX();
 			marker.points[i].y = vertices[i]->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[i].z = 0;
+			
+			cov_msg.data.push_back(i);
+			cov_msg.data.push_back(marker.points[i].x);
+			cov_msg.data.push_back(marker.points[i].y);
+			cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
 		}
 		mVerticesPublisher.publish(marker);
 		
@@ -467,6 +471,10 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(edges.Size() * 2);
 		
+		// Only used to check data parse
+		cov_msg.data.push_back(-123.45);
+		cov_msg.data.push_back((int)edges.Size());
+		
 		for(int i = 0; i < edges.Size(); i++)
 		{
 			marker.points[2*i].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
@@ -476,12 +484,35 @@ bool MultiMapper::sendMap()
 			marker.points[2*i+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
 			marker.points[2*i+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[2*i+1].z = 0;
-			if(i % 4 == 0){
-				std::vector<double> cov = edges[i]->GetCovarianceVector();
-				ROS_WARN("I get covariance: %f", cov[0]);
+
+			std::vector<double> cov = edges[i]->GetCovarianceVector();
+			// Add node ID
+				// cov_msg.data.push_back(edges[i]->GetSource()->GetUniqueID());
+				// cov_msg.data.push_back(edges[i]->GetTarget()->GetUniqueID());
+			int id1 = -1;
+			int id2 = -1;
+			for(int j = 0; j < vertices.Size(); j++){
+				if(vertices[j] == edges[i]->GetSource())
+					id1 = j;
+				if(vertices[j] == edges[i]->GetTarget())
+					id2 = j;
+				if(id1 != -1 && id2 != -1)
+					break;
 			}
+
+			cov_msg.data.push_back(id1);
+			cov_msg.data.push_back(id2);
+			cov_msg.data.push_back(cov[0]);
+			cov_msg.data.push_back(cov[1]);
+			cov_msg.data.push_back(cov[2]);
+			cov_msg.data.push_back(cov[4]);
+			cov_msg.data.push_back(cov[5]);
+			cov_msg.data.push_back(cov[8]);
+			
 		}
 		mEdgesPublisher.publish(marker);
+		// Pub covariance
+		mCovPublisher.publish(cov_msg);
 	}
 	return true;
 }
