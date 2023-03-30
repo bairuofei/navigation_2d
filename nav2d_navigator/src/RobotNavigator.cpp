@@ -234,11 +234,11 @@ bool RobotNavigator::createPlan()
 	{
 		queue.insert(Entry(0.0, mGoalPoint));
 		mCurrentPlan[mGoalPoint] = 0;
-	}else
-	{
-		// Initialize the queue with area around the goal point
+	}else{
+		// Directly add all neighbors of current goal point to find path to mStartPoint
 		int reach = mCellRobotRadius + (1.0 / mCurrentMap.getResolution());
 		std::vector<unsigned int> neighbors = mCurrentMap.getFreeNeighbors(mGoalPoint, reach);
+		// std::vector<unsigned int> neighbors = mCurrentMap.getFreeNeighbors(mGoalPoint, 3);
 		for(unsigned int i = 0; i < neighbors.size(); i++)
 		{
 			queue.insert(Entry(0.0, neighbors[i]));
@@ -293,9 +293,14 @@ bool RobotNavigator::createPlan()
 		}
 	}
 	
+	// Here means the current goal position cannot reach the mStartPoint
 	if(mCurrentPlan[mStartPoint] < 0)
 	{
-		ROS_ERROR("No way between robot and goal!");
+		ROS_ERROR("No way between robot and goal! ");
+		// ROS_ERROR("Now trying to set its neighbors as goal");
+		// // Initialize the queue with area around the goal point
+		// int reach = mCellRobotRadius + (1.0 / mCurrentMap.getResolution());
+		// std::vector<unsigned int> neighbors = mCurrentMap.getFreeNeighbors(mGoalPoint, reach);
 		return false;
 	}
 	

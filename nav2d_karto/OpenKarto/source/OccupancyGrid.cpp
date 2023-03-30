@@ -38,8 +38,8 @@ namespace karto
       throw Exception("Resolution cannot be 0");
     }
 
-    m_pMinPassThrough = new Parameter<kt_int32u>(NULL, "MinPassThrough", "", "", 2);
-    m_pOccupancyThreshold = new Parameter<kt_double>(NULL, "OccupancyThreshold", "", "", 0.1);
+    m_pMinPassThrough = new Parameter<kt_int32u>(NULL, "MinPassThrough", "", "", 3); // 2
+    m_pOccupancyThreshold = new Parameter<kt_double>(NULL, "OccupancyThreshold", "", "", 0.3); // 0.1
 
     GetCoordinateConverter()->SetScale(1.0 / resolution);
     GetCoordinateConverter()->SetOffset(rOffset);

@@ -288,7 +288,7 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 		}
 	}
 	
-	if(mState == ST_LOCALIZING)
+	if(mState == ST_LOCALIZING)  // Start localization
 	{
 		mSelfLocalizer->process(scan);
 		if(mSelfLocalizer->getCovariance() < mMaxCovariance)
@@ -299,7 +299,7 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 			setRobotPose(p.getOrigin().getX(), p.getOrigin().getY(), tf::getYaw(p.getRotation()));
 		}
 	}else 
-	if(mState == ST_MAPPING)
+	if(mState == ST_MAPPING)  // Start mapping
 	{
 		// get the odometry pose from tf
 		tf::StampedTransform tfPose;
@@ -673,7 +673,8 @@ void MultiMapper::receiveLocalizedScan(const nav2d_msgs::LocalizedScan::ConstPtr
 }
 
 void MultiMapper::sendLocalizedScan(const sensor_msgs::LaserScan::ConstPtr& scan, const karto::Pose2& pose)
-{
+{	
+	// Send localized scan out and change to ros format
 	nav2d_msgs::LocalizedScan rosScan;
 	rosScan.robot_id = mRobotID;
 	rosScan.laser_type = 0;

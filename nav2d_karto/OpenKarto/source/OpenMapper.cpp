@@ -1855,7 +1855,7 @@ namespace karto
     kt_double squaredDistance = pose.GetPosition().SquaredDistance(closestScanPose.GetPosition());
     if (squaredDistance < math::Square(m_pOpenMapper->m_pLinkScanMaximumDistance->GetValue()) + KT_TOLERANCE)
     {
-      LinkObjects(pClosestScan, pScan, rMean, rCovariance);
+      LinkObjects(pClosestScan, pScan, rMean, rCovariance); // From cloestscan in the chain, to the pscan
 #ifdef KARTO_DEBUG2
       std::cout << "Linking scan " << pScan->GetStateId() << " to chain scan " << pClosestScan->GetStateId() << std::endl;
 #endif
@@ -2080,24 +2080,27 @@ namespace karto
   
   LocalizedLaserScanList MapperGraph::FindPossibleLoopClosure(LocalizedLaserScan* pScan, const Identifier& rSensorName, kt_int32u& rStartScanIndex)
   {
+    // To be a valid loop closure (a chain of candidate loop closure), it must satisfy that
+    // (1) all scans in this chain should be closer to current scan than m_pLoopSearchMaximumDistance
+    // (2) The length of this candidate chain should be longer than m_pLoopMatchMinimumChainSize
     LocalizedLaserScanList chain; // return value
     
     Pose2 pose = pScan->GetReferencePose(m_pOpenMapper->m_pUseScanBarycenter->GetValue());
     
     // possible loop closure chain should not include close scans that have a
-    // path of links to the scan of interest
+    // path of links to the scan of interest, means should not be very close to current scan
     const LocalizedLaserScanList nearLinkedScans = FindNearLinkedScans(pScan, m_pOpenMapper->m_pLoopSearchMaximumDistance->GetValue());
     
     LocalizedLaserScanList scans = m_pOpenMapper->m_pMapperSensorManager->GetScans(rSensorName);
     kt_size_t nScans = scans.Size();
-    for (; rStartScanIndex < nScans; rStartScanIndex++)
+    for (; rStartScanIndex < nScans; rStartScanIndex++)  // Traversing all scans
     {
       LocalizedLaserScan* pCandidateScan = scans[rStartScanIndex];
       
       Pose2 candidateScanPose = pCandidateScan->GetReferencePose(m_pOpenMapper->m_pUseScanBarycenter->GetValue());
-      
+      // Get distance of the candidate scan to current scan
       kt_double squaredDistance = candidateScanPose.GetPosition().SquaredDistance(pose.GetPosition());
-      if (squaredDistance < math::Square(m_pOpenMapper->m_pLoopSearchMaximumDistance->GetValue()) + KT_TOLERANCE)
+      if (squaredDistance < math::Square(m_pOpenMapper->m_pLoopSearchMaximumDistance->GetValue()) + KT_TOLERANCE) // 10
       {
         // a linked scan cannot be in the chain
         if (nearLinkedScans.Contains(pCandidateScan) == true)
@@ -2214,7 +2217,7 @@ namespace karto
     m_pMinimumAnglePenalty = new Parameter<kt_double>(GetParameterSet(), "MinimumAnglePenalty", "Mapper::Scan Matcher::Minimum Angle Penalty", "MinimumAnglePenalty", 0.9);
     
     m_pLinkMatchMinimumResponseFine = new Parameter<kt_double>(GetParameterSet(), "LinkMatchMinimumResponseFine", "Mapper::Link::Match Minimum Response Fine", "LinkMatchMinimumResponseFine", 0.6);
-    m_pLinkScanMaximumDistance = new Parameter<kt_double>(GetParameterSet(), "LinkScanMaximumDistance", "Mapper::Link::Scan Maximum Distance", "LinkScanMaximumDistance", 5.0);
+    m_pLinkScanMaximumDistance = new Parameter<kt_double>(GetParameterSet(), "LinkScanMaximumDistance", "Mapper::Link::Scan Maximum Distance", "LinkScanMaximumDistance", 10.0);
 
     m_pCorrelationSearchSpaceDimension = new Parameter<kt_double>(GetParameterSet(), "CorrelationSearchSpaceDimension", "Mapper::Correlation Search Space::Dimension", "CorrelationSearchSpaceDimension", 0.3);
     m_pCorrelationSearchSpaceResolution = new Parameter<kt_double>(GetParameterSet(), "CorrelationSearchSpaceResolution", "Mapper::Correlation Search Space::Resolution", "CorrelationSearchSpaceResolution", 0.01);
@@ -2227,11 +2230,11 @@ namespace karto
     m_pLoopSearchSpaceResolution = new Parameter<kt_double>(GetParameterSet(), "LoopSearchSpaceResolution", "Mapper::Loop Correlation Search Space::Resolution", "LoopSearchSpaceResolution", 0.05);
     m_pLoopSearchSpaceSmearDeviation = new Parameter<kt_double>(GetParameterSet(), "LoopSearchSpaceSmearDeviation", "Mapper::Loop Correlation Search Space::Smear Deviation", "LoopSearchSpaceSmearDeviation", 0.03);
 
-    m_pLoopSearchMaximumDistance = new Parameter<kt_double>(GetParameterSet(), "LoopSearchMaximumDistance", "Mapper::Loop::Search Maximum Distance", "LoopSearchMaximumDistance", 4.0);
-    m_pLoopMatchMinimumChainSize = new Parameter<kt_int32u>(GetParameterSet(), "LoopMatchMinimumChainSize", "Mapper::Loop::Match::Minimum Chain Size", "LoopMatchMinimumChainSize", 10);
+    m_pLoopSearchMaximumDistance = new Parameter<kt_double>(GetParameterSet(), "LoopSearchMaximumDistance", "Mapper::Loop::Search Maximum Distance", "LoopSearchMaximumDistance", 10.0);
+    m_pLoopMatchMinimumChainSize = new Parameter<kt_int32u>(GetParameterSet(), "LoopMatchMinimumChainSize", "Mapper::Loop::Match::Minimum Chain Size", "LoopMatchMinimumChainSize", 4);
     m_pLoopMatchMaximumVarianceCoarse = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMaximumVarianceCoarse", "Mapper::Loop::Match::Maximum Variance Coarse", "LoopMatchMaximumVarianceCoarse", math::Square(0.4));
     m_pLoopMatchMinimumResponseCoarse = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMinimumResponseCoarse", "Mapper::Loop::Match::Minimum Response Coarse", "LoopMatchMinimumResponseCoarse", 0.7);
-    m_pLoopMatchMinimumResponseFine = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMinimumResponseFine", "Mapper::Loop::Match::Minimum Response Fine", "LoopMatchMinimumResponseFine", 0.7);
+    m_pLoopMatchMinimumResponseFine = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMinimumResponseFine", "Mapper::Loop::Match::Minimum Response Fine", "LoopMatchMinimumResponseFine", 0.7);  // 这是一个归一化值，取值范围在0-1之间，表示点云与地图的命中比例
   }
 
   void OpenMapper::Initialize(kt_double rangeThreshold)
@@ -2351,7 +2354,7 @@ namespace karto
       }
       
       /////////////////////////////////////////////
-      // object is a scan
+      // object is a key scan
       
       Matrix3 covariance;
       covariance.SetToIdentity();
@@ -2360,6 +2363,7 @@ namespace karto
       if (m_pUseScanMatching->GetValue() && pLastScan != NULL)
       {
         Pose2 bestPose;
+        // Get running scan will register this scan to the local map (formed by running scans)
         m_pSequentialScanMatcher->MatchScan(pScan, m_pMapperSensorManager->GetRunningScans(pScan->GetSensorIdentifier()), bestPose, covariance);
         pScan->SetSensorPose(bestPose);
       }
@@ -2373,15 +2377,20 @@ namespace karto
       {
         // add to graph
         m_pGraph->AddVertex(pScan);
-        m_pGraph->AddEdges(pScan, covariance);
+        m_pGraph->AddEdges(pScan, covariance);  // 简单依据AddEdges,这个函数里实际上尝试给当前的scan添加三种边
         
-        m_pMapperSensorManager->AddRunningScan(pScan);
+        m_pMapperSensorManager->AddRunningScan(pScan); // Add current scan to running scan. Before this, RunningScan has been used to add edges for pScan
         
         List<Identifier> sensorNames = m_pMapperSensorManager->GetSensorNames();
+
+        kt_bool pgHasOptimized = false;
         karto_const_forEach(List<Identifier>, &sensorNames)
         {
-          m_pGraph->TryCloseLoop(pScan, *iter);
-        }      
+          pgHasOptimized = m_pGraph->TryCloseLoop(pScan, *iter);
+        }   
+        if(!pgHasOptimized){
+          m_pGraph->CorrectPoses();
+        }   
       }
       
       m_pMapperSensorManager->SetLastScan(pScan);

@@ -1,0 +1,1 @@
+set(ORDERED_PATHS "/home/ruofei/buffa_code/cpp/catkin_chinesePP_ws/devel/lib;/opt/ros/melodic/lib")

@@ -147,6 +147,22 @@ public:
 		return neighbors;
 	}
 
+
+    unsigned int getNumFreeNeighbors(unsigned int index, int offset = 1)
+    {
+        std::vector<unsigned int> neighbors;
+
+        if(offset < 0) offset *= -1;
+        int y = index / mMapWidth;
+        int x = index % mMapWidth;
+
+        for(int i = -offset; i <= offset; i++)
+            for(int j = -offset; j <= offset; j++)
+                if(getIndex(x+i, y+j, index) && isFree(index))
+                    neighbors.push_back(index);
+        return neighbors.size();
+    }
+
 	/** Gets indices of all neighboring cells */ 
 	std::vector<unsigned int> getNeighbors(unsigned int index, bool diagonal = false)
 	{
@@ -195,6 +211,20 @@ public:
 		if(value >= 0 && value < mLethalCost) return true;
 		return false;
 	}
+
+    bool isUnknown(int x, int y)
+    {
+        signed char value = getData(x, y);
+        if(value < 0 ) return true;
+        return false;
+    }
+
+    bool isUnknown(unsigned int index)
+    {
+        signed char value = getData(index);
+        if(value < 0) return true;
+        return false;
+    }
 private:
 
 	nav_msgs::OccupancyGrid mOccupancyGrid;

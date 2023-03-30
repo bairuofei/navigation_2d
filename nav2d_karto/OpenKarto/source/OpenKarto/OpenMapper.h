@@ -666,6 +666,11 @@ namespace karto
     void LinkChainToScan(const LocalizedLaserScanList& rChain, LocalizedLaserScan* pScan, const Pose2& rMean, const Matrix3& rCovariance);
 
     std::vector<std::tuple<int, int>> covariance_lists;
+
+    /**
+     * Optimizes scan poses
+     */
+    void CorrectPoses();
     
   private:
     /**
@@ -727,10 +732,7 @@ namespace karto
      */
     LocalizedLaserScanList FindPossibleLoopClosure(LocalizedLaserScan* pScan, const Identifier& rSensorName, kt_int32u& rStartScanIndex);
     
-    /**
-     * Optimizes scan poses
-     */
-    void CorrectPoses();
+    
     
   private:
     /**
