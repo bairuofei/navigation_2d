@@ -1,6 +1,7 @@
 #include <visualization_msgs/Marker.h>
 #include <nav2d_msgs/RobotPose.h>
 #include <nav2d_karto/MultiMapper.h>
+#include <geometry_msgs/PoseStamped.h>
 
 // compute linear index for given map coords
 #define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
@@ -40,10 +41,13 @@ MultiMapper::MultiMapper()
 	mLaserSubscriber = robotNode.subscribe("scan", 100, &MultiMapper::receiveLaserScan, this);
 	mInitialPoseSubscriber = robotNode.subscribe("initialpose", 1, &MultiMapper::receiveInitialPose, this);
 	mOtherRobotsPublisher = robotNode.advertise<nav2d_msgs::RobotPose>("others", 10, true);
+	mPathPublisher = robotNode.advertise<nav_msgs::Path>("slam_path", 10, true);
 
 	mVerticesPublisher = mapperNode.advertise<visualization_msgs::Marker>("vertices", 1, true);
 	mEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("edges", 1, true);
 	mPosePublisher = robotNode.advertise<geometry_msgs::PoseStamped>("localization_result", 1, true);
+
+	mPoseGraphIdxSub = robotNode.subscribe("pose_graph_idx", 5, &MultiMapper::handlePoseGraphIdx, this);
 
 	// Pub covariance
 	mCovPublisher = robotNode.advertise<std_msgs::Float64MultiArray>("slam_edge_cov", 2);
@@ -146,6 +150,9 @@ MultiMapper::MultiMapper()
 	mNodesAdded = 0;
 	mMapChanged = true;
 	mLastMapUpdate = ros::WallTime(0);
+
+	mVertexReceiveIdx = 0;
+	mEdgeReceiveIdx = 0;
 	
 	if(mRobotID == 1)
 	{
@@ -175,6 +182,17 @@ MultiMapper::MultiMapper()
 MultiMapper::~MultiMapper()
 {
 
+}
+
+/**
+ * @brief Update pose graph publish index.
+ * 
+ * @param msg 
+ */
+void MultiMapper::handlePoseGraphIdx(const std_msgs::Int32MultiArray::ConstPtr& msg){
+	mVertexReceiveIdx = msg->data[0];
+	mEdgeReceiveIdx = msg->data[1];
+	return;
 }
 
 void MultiMapper::setScanSolver(karto::ScanSolver* scanSolver)
@@ -322,14 +340,15 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 		karto::Pose2 kartoPose = karto::Pose2(tfPose.getOrigin().x(), tfPose.getOrigin().y(), tf::getYaw(tfPose.getRotation()));
 		
 		// create localized laser scan
-		karto::LocalizedLaserScanPtr laserScan = createFromRosMessage(*scan, mLaser->GetIdentifier());
+		karto::LocalizedLaserScanPtr laserScan = createFromRosMessage(*scan, mLaser->GetIdentifier());  // * here take data from pointer "scan"
 		laserScan->SetOdometricPose(kartoPose);
 		laserScan->SetCorrectedPose(kartoPose);
 		
 		bool success;
 		try
-		{
-			success = mMapper->Process(laserScan);
+		{	
+			// TODO: Publish newly added nodes and edges
+			success = mMapper->Process(laserScan);  // Here the laserScan is registered into current map
 		}
 		catch(karto::Exception e)
 		{
@@ -338,10 +357,13 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 		}
 		
 		if(success)
-		{
+		{	
+			// Current laser scan has been added into pose graph, edges are also added.
+
 			// Compute the map->odom transform
 			karto::Pose2 corrected_pose = laserScan->GetCorrectedPose();
-			tf::Pose map_in_robot(tf::createQuaternionFromYaw(corrected_pose.GetHeading()), tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
+			tf::Pose map_in_robot(tf::createQuaternionFromYaw(corrected_pose.GetHeading()), 
+								  tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
 			map_in_robot = map_in_robot.inverse();
 			tf::Stamped<tf::Pose> map_in_odom;
 			bool ok = true;
@@ -364,10 +386,19 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 			mNodesAdded++;
 			mMapChanged = true;
 
+			// TODO: Publish newly added vertex and edges
+			/*  Both new vertex and edges are added sequently into a list.
+				m_pGraph 
+				karto::MapperGraph::VertexList vertices = mMapper->GetGraph()->GetVertices();
+				karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
+
+			*/
+
 			ros::WallDuration d = ros::WallTime::now() - mLastMapUpdate;
 			if(mMapUpdateRate > 0 && d.toSec() > mMapUpdateRate)
 			{
 				sendMap();
+				publishPoseGraph();  // Publish vertices and edges of pose graph.
 			}
 
 			// Send the scan to the other robots via com-layer (DDS)
@@ -385,6 +416,54 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 			mOtherRobotsPublisher.publish(other);
 		}
 	}
+}
+
+void MultiMapper::publishPoseGraph(){
+
+	// Store edges and covariance
+	// node1_id, node2_id, upper triangle of the covariance matrix (6 elements)
+	// 8 data for an edge
+	std_msgs::Float64MultiArray cov_msg;
+
+	// vertex is a class here
+	karto::MapperGraph::VertexList vertices = mMapper->GetGraph()->GetVertices();
+
+
+	cov_msg.data.push_back(vertices.Size());
+	for(int i = mVertexReceiveIdx; i < vertices.Size(); i++) {
+		cov_msg.data.push_back(i);
+		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetX());
+		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetY());
+		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+	}
+
+	karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
+	// Only used to check data parse
+	cov_msg.data.push_back(-123.45);
+	cov_msg.data.push_back((int)edges.Size());
+	for(int i = mEdgeReceiveIdx; i < edges.Size(); i++) {
+		std::vector<double> cov = edges[i]->GetCovarianceVector();
+		int id1 = -1;
+		int id2 = -1;
+		for(int j = 0; j < vertices.Size(); j++){
+			if(vertices[j] == edges[i]->GetSource())
+				id1 = j;
+			if(vertices[j] == edges[i]->GetTarget())
+				id2 = j;
+			if(id1 != -1 && id2 != -1)
+				break;
+		}
+		cov_msg.data.push_back(id1);
+		cov_msg.data.push_back(id2);
+		cov_msg.data.push_back(cov[0]);
+		cov_msg.data.push_back(cov[1]);
+		cov_msg.data.push_back(cov[2]);
+		cov_msg.data.push_back(cov[4]);
+		cov_msg.data.push_back(cov[5]);
+		cov_msg.data.push_back(cov[8]);
+	}
+	mCovPublisher.publish(cov_msg);
+	return;
 }
 
 bool MultiMapper::getMap(nav_msgs::GetMap::Request  &req, nav_msgs::GetMap::Response &res)
@@ -412,9 +491,9 @@ bool MultiMapper::sendMap()
 	
 	// Publish the map
 	mMapPublisher.publish(mGridMap);
+	// Update publish time to control sendMap frequency
 	mLastMapUpdate = ros::WallTime::now();
 	
-
 	// Publish the pose-graph
 	if(mPublishPoseGraph)
 	{
@@ -442,21 +521,28 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(vertices.Size());
 		
-		// Clear previous edge info
-		cov_msg.data.clear();
-		cov_msg.data.push_back(vertices.Size());
+		// Clear previous path info
+		pathAftPgo.header.frame_id = mMapFrame;
+		pathAftPgo.header.stamp = ros::Time();
+		pathAftPgo.poses.clear();
+
 		for(int i = 0; i < vertices.Size(); i++)
 		{
 			marker.points[i].x = vertices[i]->GetVertexObject()->GetCorrectedPose().GetX();
 			marker.points[i].y = vertices[i]->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[i].z = 0;
 			
-			cov_msg.data.push_back(i);
-			cov_msg.data.push_back(marker.points[i].x);
-			cov_msg.data.push_back(marker.points[i].y);
-			cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+			// path after pgo
+			geometry_msgs::PoseStamped poseAftPgo;
+			poseAftPgo.header = pathAftPgo.header;
+			poseAftPgo.pose.position.x = marker.points[i].x;
+			poseAftPgo.pose.position.y = marker.points[i].y;
+			poseAftPgo.pose.position.z = 0;
+			poseAftPgo.pose.orientation = tf::createQuaternionMsgFromYaw(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+			pathAftPgo.poses.push_back(poseAftPgo);
 		}
 		mVerticesPublisher.publish(marker);
+		mPathPublisher.publish(pathAftPgo);
 		
 		// Publish the edges
 		karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
@@ -471,10 +557,6 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(edges.Size() * 2);
 		
-		// Only used to check data parse
-		cov_msg.data.push_back(-123.45);
-		cov_msg.data.push_back((int)edges.Size());
-		
 		for(int i = 0; i < edges.Size(); i++)
 		{
 			marker.points[2*i].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
@@ -483,36 +565,9 @@ bool MultiMapper::sendMap()
 
 			marker.points[2*i+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
 			marker.points[2*i+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
-			marker.points[2*i+1].z = 0;
-
-			std::vector<double> cov = edges[i]->GetCovarianceVector();
-			// Add node ID
-				// cov_msg.data.push_back(edges[i]->GetSource()->GetUniqueID());
-				// cov_msg.data.push_back(edges[i]->GetTarget()->GetUniqueID());
-			int id1 = -1;
-			int id2 = -1;
-			for(int j = 0; j < vertices.Size(); j++){
-				if(vertices[j] == edges[i]->GetSource())
-					id1 = j;
-				if(vertices[j] == edges[i]->GetTarget())
-					id2 = j;
-				if(id1 != -1 && id2 != -1)
-					break;
-			}
-
-			cov_msg.data.push_back(id1);
-			cov_msg.data.push_back(id2);
-			cov_msg.data.push_back(cov[0]);
-			cov_msg.data.push_back(cov[1]);
-			cov_msg.data.push_back(cov[2]);
-			cov_msg.data.push_back(cov[4]);
-			cov_msg.data.push_back(cov[5]);
-			cov_msg.data.push_back(cov[8]);
-			
+			marker.points[2*i+1].z = 0;	
 		}
 		mEdgesPublisher.publish(marker);
-		// Pub covariance
-		mCovPublisher.publish(cov_msg);
 	}
 	return true;
 }
@@ -630,7 +685,7 @@ void MultiMapper::receiveLocalizedScan(const nav2d_msgs::LocalizedScan::ConstPtr
 			ROS_ERROR("%s", e1.GetErrorMessage().ToCString());
 		}
 	}
-	if(added)
+	if(added)  // New laserscan is registered into current map
 	{
 		mNodesAdded++;
 		mMapChanged = true;

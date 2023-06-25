@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Int32MultiArray.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -11,6 +12,8 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav2d_msgs/LocalizedScan.h>
 #include <nav2d_localizer/SelfLocalizer.h>
+#include <nav_msgs/Path.h>
+
 
 #include <OpenKarto/OpenKarto.h>
 
@@ -38,6 +41,8 @@ public:
 	void publishLoop();
 	void publishTransform();
 	void setScanSolver(karto::ScanSolver* scanSolver);
+	void publishPoseGraph();  // Publish pose graph for path planning
+	void handlePoseGraphIdx(const std_msgs::Int32MultiArray::ConstPtr& msg);
 
 private:
 	// Private methods
@@ -64,9 +69,12 @@ private:
 	ros::Publisher mEdgesPublisher;
 	ros::Publisher mPosePublisher;
 	ros::Publisher mOtherRobotsPublisher;
+	ros::Publisher mPathPublisher;  // SLAM path after pgo
 	ros::Subscriber mLaserSubscriber;
 	ros::Subscriber mScanSubscriber;
 	ros::Subscriber mInitialPoseSubscriber;
+	ros::Subscriber mPoseGraphIdxSub;
+
 
 	// publish covariance
 	ros::Publisher mCovPublisher;
@@ -97,10 +105,13 @@ private:
 	std::string mOffsetFrame;
 	std::string mMapFrame;
 
-	// Store edges and covariance
-	// node1_id, node2_id, upper triangle of the covariance matrix (6 elements)
-	// 8 data for an edge
-	std_msgs::Float64MultiArray cov_msg;
+	// Update SLAM poses after pgo
+	nav_msgs::Path pathAftPgo; 
+
+	// Index before which the vertices and edges have been received
+	// Newly published vertex start from vertex_receive_idx
+	int mVertexReceiveIdx;
+	int mEdgeReceiveIdx;
 };
 
 #endif

@@ -110,7 +110,7 @@ public:
 			if(getData(neighbor_x, neighbor_y) == -1)
 				unknown_cell++;
 			else if(getData(neighbor_x, neighbor_y) >= 85){
-				ROS_INFO("One obstacle cell counted.");
+				ROS_DEBUG("One obstacle cell counted.");
 				obstacle_cell++;
 			}
 		}

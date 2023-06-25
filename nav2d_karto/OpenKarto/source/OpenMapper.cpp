@@ -27,6 +27,8 @@
 #include <map>
 #include <iostream>
 
+#include <ros/ros.h>
+
 #include <OpenKarto/OpenMapper.h>
 #include <OpenKarto/Logger.h>
 
@@ -1352,7 +1354,7 @@ namespace karto
         Vertex<T>* pNext = toVisit.front();
         toVisit.pop();
 
-        if (pVisitor->Visit(pNext))
+        if (pVisitor->Visit(pNext))  // Distance to pScan is less than m_MaxDistanceSquared
         {
           // vertex is valid, explore neighbors
           validVertices.push_back(pNext);
@@ -1550,11 +1552,14 @@ namespace karto
   
   kt_bool MapperGraph::TryCloseLoop(LocalizedLaserScan* pScan, const Identifier& rSensorName)
   {
-    kt_bool loopClosed = false;
+    kt_bool loopClosed = false;  // Identifier to whether perform PG optimization
     
     kt_int32u scanIndex = 0;
     
-    LocalizedLaserScanList candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
+    LocalizedLaserScanList candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);  // Only return one valid loop chain
+    if(candidateChain.IsEmpty()){
+      // ROS_WARN("No loop closure find.");
+    }
     
     while (!candidateChain.IsEmpty())
     {
@@ -1605,6 +1610,7 @@ namespace karto
           
           MapperEventArguments eventArguments("REJECTED!");
           m_pOpenMapper->Message.Notify(this, eventArguments);
+          ROS_WARN("Fine LC failed. Actual: %f, Required: %f", fineResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseFine->GetValue());
         }
         else
         {
@@ -1622,9 +1628,19 @@ namespace karto
 
           loopClosed = true;
         }
+      }else{
+        ROS_WARN("Coarse LC failed. Actual: %f, Required: %f", coarseResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseCoarse->GetValue());
+        ROS_WARN("Value cov(0, 0): %f, cov(1, 1): %f. Required Max cov: %f", covariance(0, 0), covariance(1, 1), m_pOpenMapper->m_pLoopMatchMaximumVarianceCoarse->GetValue());
+      }
+      // Debug
+      if(loopClosed){
+        ROS_WARN("Add one Loop closure.");
+      }else{
+        ROS_WARN("Rejected Loop closure.");
       }
       
-      candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
+      
+      candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex); // Seach for new loop closure chain from new scanIndex
     }
     
     return loopClosed;
@@ -1990,8 +2006,8 @@ namespace karto
   
   LocalizedLaserScanList MapperGraph::FindNearLinkedScans(LocalizedLaserScan* pScan, kt_double maxDistance)
   {
-    NearScanVisitor* pVisitor = new NearScanVisitor(pScan, maxDistance, m_pOpenMapper->m_pUseScanBarycenter->GetValue());
-    LocalizedObjectList nearLinkedObjects = m_pTraversal->Traverse(GetVertex(pScan), pVisitor);
+    NearScanVisitor* pVisitor = new NearScanVisitor(pScan, maxDistance, m_pOpenMapper->m_pUseScanBarycenter->GetValue()); // Here distance is maxDistance
+    LocalizedObjectList nearLinkedObjects = m_pTraversal->Traverse(GetVertex(pScan), pVisitor);  // Here use another distance for fine neighbor finding
     delete pVisitor;
     
     LocalizedLaserScanList nearLinkedScans;
@@ -2087,8 +2103,8 @@ namespace karto
     
     Pose2 pose = pScan->GetReferencePose(m_pOpenMapper->m_pUseScanBarycenter->GetValue());
     
-    // possible loop closure chain should not include close scans that have a
-    // path of links to the scan of interest, means should not be very close to current scan
+    // find neighbor scans of pScan, we will not consider these close scans as loop closures
+    // BFS starting from current pScan is used to find neighbors
     const LocalizedLaserScanList nearLinkedScans = FindNearLinkedScans(pScan, m_pOpenMapper->m_pLoopSearchMaximumDistance->GetValue());
     
     LocalizedLaserScanList scans = m_pOpenMapper->m_pMapperSensorManager->GetScans(rSensorName);
@@ -2235,6 +2251,7 @@ namespace karto
     m_pLoopMatchMaximumVarianceCoarse = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMaximumVarianceCoarse", "Mapper::Loop::Match::Maximum Variance Coarse", "LoopMatchMaximumVarianceCoarse", math::Square(0.4));
     m_pLoopMatchMinimumResponseCoarse = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMinimumResponseCoarse", "Mapper::Loop::Match::Minimum Response Coarse", "LoopMatchMinimumResponseCoarse", 0.7);
     m_pLoopMatchMinimumResponseFine = new Parameter<kt_double>(GetParameterSet(), "LoopMatchMinimumResponseFine", "Mapper::Loop::Match::Minimum Response Fine", "LoopMatchMinimumResponseFine", 0.7);  // 这是一个归一化值，取值范围在0-1之间，表示点云与地图的命中比例
+    std::cout << m_pLoopMatchMinimumResponseCoarse << std::endl;
   }
 
   void OpenMapper::Initialize(kt_double rangeThreshold)
@@ -2275,6 +2292,7 @@ namespace karto
 
   kt_bool OpenMapper::Process(Object* pObject)
   {
+    // ROS_DEBUG("Test: Process new scan!!!");
     if (pObject == NULL)
     {
       return false;
@@ -2386,11 +2404,12 @@ namespace karto
         kt_bool pgHasOptimized = false;
         karto_const_forEach(List<Identifier>, &sensorNames)
         {
+          // ROS_WARN("Test: Try loop closure...");
           pgHasOptimized = m_pGraph->TryCloseLoop(pScan, *iter);
         }   
         if(!pgHasOptimized){
-          m_pGraph->CorrectPoses();
-        }   
+          m_pGraph->CorrectPoses();  // For PG optimization
+        } 
       }
       
       m_pMapperSensorManager->SetLastScan(pScan);

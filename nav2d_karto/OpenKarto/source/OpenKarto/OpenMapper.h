@@ -27,6 +27,8 @@
 #include <tbb/blocked_range3d.h>
 #endif
 
+#include <ros/ros.h>
+
 #include <OpenKarto/Event.h>
 #include <OpenKarto/Pair.h>
 #include <OpenKarto/Geometry.h>
