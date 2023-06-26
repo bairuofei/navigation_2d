@@ -1431,6 +1431,7 @@ namespace karto
   MapperGraph::MapperGraph(OpenMapper* pOpenMapper, kt_double rangeThreshold)
     : m_pOpenMapper(pOpenMapper)
   {
+    mCountLoop = 0;
     m_pLoopScanMatcher = ScanMatcher::Create(pOpenMapper, m_pOpenMapper->m_pLoopSearchSpaceDimension->GetValue(), m_pOpenMapper->m_pLoopSearchSpaceResolution->GetValue(), m_pOpenMapper->m_pLoopSearchSpaceSmearDeviation->GetValue(), rangeThreshold);
     assert(m_pLoopScanMatcher);
     
@@ -1610,7 +1611,7 @@ namespace karto
           
           MapperEventArguments eventArguments("REJECTED!");
           m_pOpenMapper->Message.Notify(this, eventArguments);
-          ROS_WARN("Fine LC failed. Actual: %f, Required: %f", fineResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseFine->GetValue());
+          ROS_DEBUG("Fine LC failed. Actual: %f, Required: %f", fineResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseFine->GetValue());
         }
         else
         {
@@ -1624,23 +1625,21 @@ namespace karto
           MapperEventArguments eventArguments2("Loop closed!");
           m_pOpenMapper->PostLoopClosed.Notify(this, eventArguments2);
           
-          m_pOpenMapper->ScansUpdated.Notify(this, karto::EventArguments::Empty());      
+          m_pOpenMapper->ScansUpdated.Notify(this, karto::EventArguments::Empty());   
+
+          mCountLoop++;
+          ROS_INFO("Add one Loop closure. %d loops have been added.", mCountLoop);   
 
           loopClosed = true;
         }
       }else{
-        ROS_WARN("Coarse LC failed. Actual: %f, Required: %f", coarseResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseCoarse->GetValue());
-        ROS_WARN("Value cov(0, 0): %f, cov(1, 1): %f. Required Max cov: %f", covariance(0, 0), covariance(1, 1), m_pOpenMapper->m_pLoopMatchMaximumVarianceCoarse->GetValue());
+        ROS_DEBUG("Coarse LC failed. Actual: %f, Required: %f", coarseResponse, m_pOpenMapper->m_pLoopMatchMinimumResponseCoarse->GetValue());
+        ROS_DEBUG("Value cov(0, 0): %f, cov(1, 1): %f. Required Max cov: %f", covariance(0, 0), covariance(1, 1), m_pOpenMapper->m_pLoopMatchMaximumVarianceCoarse->GetValue());
       }
-      // Debug
-      if(loopClosed){
-        ROS_WARN("Add one Loop closure.");
-      }else{
-        ROS_WARN("Rejected Loop closure.");
-      }
-      
-      
       candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex); // Seach for new loop closure chain from new scanIndex
+    }
+    if(!loopClosed){
+      ROS_DEBUG("Reject Loop closure.");
     }
     
     return loopClosed;

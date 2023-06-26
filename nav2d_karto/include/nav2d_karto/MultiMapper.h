@@ -14,6 +14,8 @@
 #include <nav2d_localizer/SelfLocalizer.h>
 #include <nav_msgs/Path.h>
 
+#include <cpp_solver/PoseGraph.h>
+
 
 #include <OpenKarto/OpenKarto.h>
 

@@ -595,6 +595,7 @@ namespace karto
     virtual ~MapperGraph();
 
     int a;
+    int mCountLoop;
     
   public:
     /**

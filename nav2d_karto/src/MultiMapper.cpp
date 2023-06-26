@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include <visualization_msgs/Marker.h>
 #include <nav2d_msgs/RobotPose.h>
 #include <nav2d_karto/MultiMapper.h>
@@ -50,7 +52,7 @@ MultiMapper::MultiMapper()
 	mPoseGraphIdxSub = robotNode.subscribe("pose_graph_idx", 5, &MultiMapper::handlePoseGraphIdx, this);
 
 	// Pub covariance
-	mCovPublisher = robotNode.advertise<std_msgs::Float64MultiArray>("slam_edge_cov", 2);
+	mCovPublisher = robotNode.advertise<cpp_solver::PoseGraph>("slam_pose_graph", 2);
 
 	// Initialize KARTO-Mapper
 	mMapper = new karto::OpenMapper(true);
@@ -192,6 +194,7 @@ MultiMapper::~MultiMapper()
 void MultiMapper::handlePoseGraphIdx(const std_msgs::Int32MultiArray::ConstPtr& msg){
 	mVertexReceiveIdx = msg->data[0];
 	mEdgeReceiveIdx = msg->data[1];
+	ROS_INFO("pose graph index upadte: vertex %d, edge %d", mVertexReceiveIdx, mEdgeReceiveIdx);
 	return;
 }
 
@@ -423,28 +426,22 @@ void MultiMapper::publishPoseGraph(){
 	// Store edges and covariance
 	// node1_id, node2_id, upper triangle of the covariance matrix (6 elements)
 	// 8 data for an edge
-	std_msgs::Float64MultiArray cov_msg;
 
-	// vertex is a class here
+	cpp_solver::PoseGraph poseGraph;
+
+	poseGraph.vertex_start_idx = this->mVertexReceiveIdx;
 	karto::MapperGraph::VertexList vertices = mMapper->GetGraph()->GetVertices();
-
-
-	cov_msg.data.push_back(vertices.Size());
 	for(int i = mVertexReceiveIdx; i < vertices.Size(); i++) {
-		cov_msg.data.push_back(i);
-		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetX());
-		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetY());
-		cov_msg.data.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+		poseGraph.vertices.push_back(i);
+		poseGraph.vertex_x.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetX());
+		poseGraph.vertex_y.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetY());
+		poseGraph.vertex_theta.push_back(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
 	}
 
+	poseGraph.edge_start_idx = this->mEdgeReceiveIdx;
 	karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
-	// Only used to check data parse
-	cov_msg.data.push_back(-123.45);
-	cov_msg.data.push_back((int)edges.Size());
 	for(int i = mEdgeReceiveIdx; i < edges.Size(); i++) {
-		std::vector<double> cov = edges[i]->GetCovarianceVector();
-		int id1 = -1;
-		int id2 = -1;
+		int id1 = -1, id2 = -1;
 		for(int j = 0; j < vertices.Size(); j++){
 			if(vertices[j] == edges[i]->GetSource())
 				id1 = j;
@@ -453,18 +450,20 @@ void MultiMapper::publishPoseGraph(){
 			if(id1 != -1 && id2 != -1)
 				break;
 		}
-		cov_msg.data.push_back(id1);
-		cov_msg.data.push_back(id2);
-		cov_msg.data.push_back(cov[0]);
-		cov_msg.data.push_back(cov[1]);
-		cov_msg.data.push_back(cov[2]);
-		cov_msg.data.push_back(cov[4]);
-		cov_msg.data.push_back(cov[5]);
-		cov_msg.data.push_back(cov[8]);
+		poseGraph.edges_start.push_back(id1);
+		poseGraph.edges_end.push_back(id2);
+
+		std::vector<double> cov = edges[i]->GetCovarianceVector();
+		std::stringstream ss;
+		ss << cov[0] << " " << cov[1] << " " << cov[2] << " "
+							<< cov[4] << " " << cov[5] << " "
+											 << cov[8];						
+		poseGraph.covariance.push_back(ss.str());
 	}
-	mCovPublisher.publish(cov_msg);
+	mCovPublisher.publish(poseGraph);
 	return;
 }
+
 
 bool MultiMapper::getMap(nav_msgs::GetMap::Request  &req, nav_msgs::GetMap::Response &res)
 {
