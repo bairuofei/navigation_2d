@@ -46,7 +46,8 @@ MultiMapper::MultiMapper()
 	mPathPublisher = robotNode.advertise<nav_msgs::Path>("slam_path", 10, true);
 
 	mVerticesPublisher = mapperNode.advertise<visualization_msgs::Marker>("vertices", 1, true);
-	mEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("edges", 1, true);
+	mClosureEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("closure_edges", 1, true);
+	mOdomEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("odom_edges", 1, true);
 	mPosePublisher = robotNode.advertise<geometry_msgs::PoseStamped>("localization_result", 1, true);
 
 	mPoseGraphIdxSub = robotNode.subscribe("pose_graph_idx", 5, &MultiMapper::handlePoseGraphIdx, this);
@@ -194,7 +195,7 @@ MultiMapper::~MultiMapper()
 void MultiMapper::handlePoseGraphIdx(const std_msgs::Int32MultiArray::ConstPtr& msg){
 	mVertexReceiveIdx = msg->data[0];
 	mEdgeReceiveIdx = msg->data[1];
-	ROS_INFO("pose graph index upadte: vertex %d, edge %d", mVertexReceiveIdx, mEdgeReceiveIdx);
+	// ROS_INFO("pose graph index upadte: vertex %d, edge %d", mVertexReceiveIdx, mEdgeReceiveIdx);
 	return;
 }
 
@@ -520,10 +521,10 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(vertices.Size());
 		
-		// Clear previous path info
-		pathAftPgo.header.frame_id = mMapFrame;
-		pathAftPgo.header.stamp = ros::Time();
-		pathAftPgo.poses.clear();
+		// // Clear previous path info
+		// pathAftPgo.header.frame_id = mMapFrame;
+		// pathAftPgo.header.stamp = ros::Time();
+		// pathAftPgo.poses.clear();
 
 		for(int i = 0; i < vertices.Size(); i++)
 		{
@@ -531,17 +532,17 @@ bool MultiMapper::sendMap()
 			marker.points[i].y = vertices[i]->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[i].z = 0;
 			
-			// path after pgo
-			geometry_msgs::PoseStamped poseAftPgo;
-			poseAftPgo.header = pathAftPgo.header;
-			poseAftPgo.pose.position.x = marker.points[i].x;
-			poseAftPgo.pose.position.y = marker.points[i].y;
-			poseAftPgo.pose.position.z = 0;
-			poseAftPgo.pose.orientation = tf::createQuaternionMsgFromYaw(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
-			pathAftPgo.poses.push_back(poseAftPgo);
+			// // path after pgo
+			// geometry_msgs::PoseStamped poseAftPgo;
+			// poseAftPgo.header = pathAftPgo.header;
+			// poseAftPgo.pose.position.x = marker.points[i].x;
+			// poseAftPgo.pose.position.y = marker.points[i].y;
+			// poseAftPgo.pose.position.z = 0;
+			// poseAftPgo.pose.orientation = tf::createQuaternionMsgFromYaw(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+			// pathAftPgo.poses.push_back(poseAftPgo);
 		}
 		mVerticesPublisher.publish(marker);
-		mPathPublisher.publish(pathAftPgo);
+		// mPathPublisher.publish(pathAftPgo);  // Up-to-date pose estimation of robot
 		
 		// Publish the edges
 		karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
@@ -549,24 +550,69 @@ bool MultiMapper::sendMap()
 		marker.header.stamp = ros::Time();
 		marker.id = 0;
 		marker.type = visualization_msgs::Marker::LINE_LIST;
-		marker.scale.x = 0.01;
+		marker.scale.x = 0.02;
 		marker.color.a = 1.0;
-		marker.color.r = 1.0;
+		marker.color.r = 0.0;
 		marker.color.g = 0.0;
-		marker.color.b = 0.0;
-		marker.points.resize(edges.Size() * 2);
-		
-		for(int i = 0; i < edges.Size(); i++)
-		{
-			marker.points[2*i].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
-			marker.points[2*i].y = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetY();
-			marker.points[2*i].z = 0;
+		marker.color.b = 1.0;
+		marker.points.resize((edges.Size() - vertices.Size() + 1) * 2);
 
-			marker.points[2*i+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
-			marker.points[2*i+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
-			marker.points[2*i+1].z = 0;	
+		// Marker for connecting continous vertices
+		visualization_msgs::Marker connect_marker;
+		connect_marker.header.frame_id = mMapFrame;
+		connect_marker.header.stamp = ros::Time();
+		connect_marker.id = 1;
+		connect_marker.type = visualization_msgs::Marker::LINE_LIST;
+		connect_marker.action = visualization_msgs::Marker::ADD;
+		connect_marker.pose.position.x = 0;
+		connect_marker.pose.position.y = 0;
+		connect_marker.pose.position.z = 0;
+		connect_marker.pose.orientation.x = 0.0;
+		connect_marker.pose.orientation.y = 0.0;
+		connect_marker.pose.orientation.z = 0.0;
+		connect_marker.pose.orientation.w = 1.0;
+		connect_marker.scale.x = 0.15;
+		connect_marker.color.a = 1.0;
+		connect_marker.color.r = 1.0;
+		connect_marker.color.g = 0.0;
+		connect_marker.color.b = 0.0;
+		connect_marker.points.resize((vertices.Size() - 1) * 2);
+		
+		int vertexIndex = 0;
+		int p = 0, q = 0;
+		for(int i = 0; i < edges.Size(); i++)
+		{	
+			if(vertexIndex + 1 < vertices.Size() && edges[i]->GetSource() == vertices[vertexIndex] && 
+			   edges[i]->GetTarget() == vertices[vertexIndex+1]){
+				connect_marker.points[2*p].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
+				connect_marker.points[2*p].y = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetY();
+				connect_marker.points[2*p].z = 0;
+
+				connect_marker.points[2*p+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
+				connect_marker.points[2*p+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
+				connect_marker.points[2*p+1].z = 0;	
+				p++;
+				vertexIndex++;
+			}
+			else{
+				marker.points[2*q].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
+				marker.points[2*q].y = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetY();
+				marker.points[2*q].z = 0;
+
+				marker.points[2*q+1].x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
+				marker.points[2*q+1].y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
+				marker.points[2*q+1].z = 0;	
+				q++;
+			}
 		}
-		mEdgesPublisher.publish(marker);
+
+		mClosureEdgesPublisher.publish(marker);
+		mOdomEdgesPublisher.publish(connect_marker);  // Path do not need to be published repeatedly.
+
+		// TODO: loop edges and path edges should be ploted with different colors
+
+
+
 	}
 	return true;
 }

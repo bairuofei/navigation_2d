@@ -77,6 +77,37 @@ public:
 		return false;
 	}
 
+	bool isExplored(unsigned int index)
+	{
+		int y = index / mMapWidth;
+		int x = index % mMapWidth;
+
+		std::vector<std::pair<int, int>> dir;
+		dir.push_back(std::pair<int, int>(-1, -1));
+		dir.push_back(std::pair<int, int>(-1, 0));
+		dir.push_back(std::pair<int, int>(-1, 1));
+		dir.push_back(std::pair<int, int>(0, -1));
+		dir.push_back(std::pair<int, int>(0, 1));
+		dir.push_back(std::pair<int, int>(1, -1));
+		dir.push_back(std::pair<int, int>(1, 0));
+		dir.push_back(std::pair<int, int>(1, 1));
+
+
+		for(std::pair<int, int>& delta: dir){
+			int neighbor_x, neighbor_y;
+			neighbor_x = x + delta.first;
+			neighbor_y = y + delta.second;
+			if(neighbor_x < 0 || neighbor_x >= mMapWidth)
+				continue;
+			if(neighbor_y < 0 || neighbor_y >= mMapHeight)
+				continue;
+			signed char value = getData(neighbor_x, neighbor_y);
+			if(value < 0 || value >= mLethalCost) 
+				return false;
+		}
+		return true;
+	}
+
 	bool isFrontier(unsigned int index)
 	{	
 		int y = index / mMapWidth;

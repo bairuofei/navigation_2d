@@ -439,6 +439,7 @@ bool RobotNavigator::generateCommand()
 	}
 
 	unsigned int target = mStartPoint;
+	// Generate intermidiate target that are steps far from start point
 	int steps = mCommandTargetDistance / mCurrentMap.getResolution();
 	for(int i = 0; i < steps; i++)
 	{
@@ -459,6 +460,7 @@ bool RobotNavigator::generateCommand()
 		ROS_ERROR("Plan execution failed, target pose not in map!");
 		return false;
 	}
+	// atan2 return value in range [-pi, pi]
 	double map_angle = atan2((double)y - current_y, (double)x - current_x);
 	
 	double angle = map_angle - mCurrentDirection;
@@ -522,7 +524,7 @@ void RobotNavigator::receiveGetMapGoal(const nav2d_navigator::GetFirstMapGoal::C
 		
 		mGetMapActionServer->publishFeedback(f);
 		mCommandPublisher.publish(msg);
-		spinOnce();
+		ros::spinOnce();
 		loopRate.sleep();
 	}
 	
@@ -561,7 +563,7 @@ void RobotNavigator::receiveGetMapGoal(const nav2d_navigator::GetFirstMapGoal::C
 
 		mGetMapActionServer->publishFeedback(f);
 		mCommandPublisher.publish(msg);
-		spinOnce();
+		ros::spinOnce();
 		loopRate.sleep();
 	}
 	
@@ -627,7 +629,7 @@ void RobotNavigator::receiveLocalizeGoal(const nav2d_navigator::LocalizeGoal::Co
 		}
 		
 		mLocalizeActionServer->publishFeedback(f);
-		spinOnce();
+		ros::spinOnce();
 		loopRate.sleep();
 	}
 }
@@ -770,7 +772,7 @@ void RobotNavigator::receiveMoveGoal(const nav2d_navigator::MoveToPosition2DGoal
 
 		// Sleep remaining time
 		cycle++;
-		spinOnce();
+		ros::spinOnce();
 		loopRate.sleep();
 		if(loopRate.cycleTime() > ros::Duration(1.0 / mFrequency))
 			ROS_WARN("Missed desired rate of %.2fHz! Loop actually took %.4f seconds!",mFrequency, loopRate.cycleTime().toSec());
@@ -838,8 +840,16 @@ void RobotNavigator::receiveExploreGoal(const nav2d_navigator::ExploreGoal::Cons
 
 			bool success = false;
 			if(preparePlan())
-			{
-				int result = mExplorationPlanner->findExplorationTarget(&mCurrentMap, mStartPoint, mGoalPoint);
+			{	
+				// Here the exploration plugin is called.
+				int result;
+				try{
+					result = mExplorationPlanner->findExplorationTarget(&mCurrentMap, mStartPoint, mGoalPoint);
+				} catch (const std::exception& e) {
+					ROS_ERROR("Error in exploration plugin: %s", e.what());
+					ROS_WARN("Exploration stops because of error.");
+					result = EXPL_WAITING;
+				}
 				switch(result)
 				{
 				case EXPL_TARGET_SET:
@@ -910,7 +920,7 @@ void RobotNavigator::receiveExploreGoal(const nav2d_navigator::ExploreGoal::Cons
 		
 		// Sleep remaining time
 		cycle++;
-		spinOnce();
+		ros::spinOnce();
 		loopRate.sleep();
 		if(loopRate.cycleTime() > ros::Duration(1.0 / mFrequency))
 			ROS_WARN("Missed desired rate of %.2fHz! Loop actually took %.4f seconds!",mFrequency, loopRate.cycleTime().toSec());

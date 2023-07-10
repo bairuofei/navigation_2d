@@ -68,7 +68,8 @@ private:
 	ros::Publisher mMapPublisher;
 	ros::Publisher mScanPublisher;
 	ros::Publisher mVerticesPublisher;
-	ros::Publisher mEdgesPublisher;
+	ros::Publisher mClosureEdgesPublisher;
+	ros::Publisher mOdomEdgesPublisher;
 	ros::Publisher mPosePublisher;
 	ros::Publisher mOtherRobotsPublisher;
 	ros::Publisher mPathPublisher;  // SLAM path after pgo
