@@ -521,10 +521,10 @@ bool MultiMapper::sendMap()
 		marker.color.b = 0.0;
 		marker.points.resize(vertices.Size());
 		
-		// // Clear previous path info
-		// pathAftPgo.header.frame_id = mMapFrame;
-		// pathAftPgo.header.stamp = ros::Time();
-		// pathAftPgo.poses.clear();
+		// Clear previous path info
+		pathAftPgo.header.frame_id = mMapFrame;
+		pathAftPgo.header.stamp = ros::Time();
+		pathAftPgo.poses.clear();
 
 		for(int i = 0; i < vertices.Size(); i++)
 		{
@@ -532,17 +532,18 @@ bool MultiMapper::sendMap()
 			marker.points[i].y = vertices[i]->GetVertexObject()->GetCorrectedPose().GetY();
 			marker.points[i].z = 0;
 			
-			// // path after pgo
-			// geometry_msgs::PoseStamped poseAftPgo;
-			// poseAftPgo.header = pathAftPgo.header;
-			// poseAftPgo.pose.position.x = marker.points[i].x;
-			// poseAftPgo.pose.position.y = marker.points[i].y;
-			// poseAftPgo.pose.position.z = 0;
-			// poseAftPgo.pose.orientation = tf::createQuaternionMsgFromYaw(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
-			// pathAftPgo.poses.push_back(poseAftPgo);
+			// path after pgo
+			geometry_msgs::PoseStamped poseAftPgo;
+			poseAftPgo.header = pathAftPgo.header;
+			poseAftPgo.pose.position.x = marker.points[i].x;
+			poseAftPgo.pose.position.y = marker.points[i].y;
+			poseAftPgo.pose.position.z = 0;
+			poseAftPgo.pose.orientation = tf::createQuaternionMsgFromYaw(vertices[i]->GetVertexObject()->GetCorrectedPose().GetHeading());
+			pathAftPgo.poses.push_back(poseAftPgo);
 		}
 		mVerticesPublisher.publish(marker);
-		// mPathPublisher.publish(pathAftPgo);  // Up-to-date pose estimation of robot
+
+		mPathPublisher.publish(pathAftPgo);  // Up-to-date pose estimation of robot, to store the slam path
 		
 		// Publish the edges
 		karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
@@ -608,11 +609,6 @@ bool MultiMapper::sendMap()
 
 		mClosureEdgesPublisher.publish(marker);
 		mOdomEdgesPublisher.publish(connect_marker);  // Path do not need to be published repeatedly.
-
-		// TODO: loop edges and path edges should be ploted with different colors
-
-
-
 	}
 	return true;
 }

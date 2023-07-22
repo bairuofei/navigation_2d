@@ -77,6 +77,13 @@ public:
 		return false;
 	}
 
+	/**
+	 * @brief A explored cell must have all its eight neighbors being free
+	 * 
+	 * @param index 
+	 * @return true 
+	 * @return false 
+	 */
 	bool isExplored(unsigned int index)
 	{
 		int y = index / mMapWidth;
@@ -140,11 +147,12 @@ public:
 				continue;
 			if(getData(neighbor_x, neighbor_y) == -1)
 				unknown_cell++;
-			else if(getData(neighbor_x, neighbor_y) >= 85){
+			else if(getData(neighbor_x, neighbor_y) >= mLethalCost){
 				ROS_DEBUG("One obstacle cell counted.");
 				obstacle_cell++;
 			}
 		}
+		// This is because frontier cells are always intersects with obstacle cells on the boundary
 		if(unknown_cell > 0 && unknown_cell > obstacle_cell)
 			return true;
 		return false;
@@ -178,10 +186,17 @@ public:
 		return neighbors;
 	}
 
-
+	/**
+	 * @brief Get the number of free neighbors around a cell within given offset.
+	 * 
+	 * @param index 
+	 * @param offset 
+	 * @return unsigned int 
+	 */
     unsigned int getNumFreeNeighbors(unsigned int index, int offset = 1)
     {
         std::vector<unsigned int> neighbors;
+		unsigned int neighbor_num = 0;
 
         if(offset < 0) offset *= -1;
         int y = index / mMapWidth;
@@ -189,9 +204,9 @@ public:
 
         for(int i = -offset; i <= offset; i++)
             for(int j = -offset; j <= offset; j++)
-                if(getIndex(x+i, y+j, index) && isFree(index))
-                    neighbors.push_back(index);
-        return neighbors.size();
+                if(getIndex(x+i, y+j, index) && isFree(index))  // getIndex return true of index in current map
+                    neighbor_num++;
+        return neighbor_num;
     }
 
 	/** Gets indices of all neighboring cells */ 
@@ -239,6 +254,7 @@ public:
 	bool isFree(int x, int y)
 	{
 		signed char value = getData(x, y);
+		// By default, mLethalCost has value 70
 		if(value >= 0 && value < mLethalCost) return true;
 		return false;
 	}
