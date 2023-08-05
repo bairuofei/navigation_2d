@@ -1628,7 +1628,7 @@ namespace karto
           m_pOpenMapper->ScansUpdated.Notify(this, karto::EventArguments::Empty());   
 
           mCountLoop++;
-          ROS_INFO("Add one Loop closure. %d loops have been added.", mCountLoop);   
+          ROS_WARN("Add one Loop closure. %d loops have been added.", mCountLoop);   
 
           loopClosed = true;
         }

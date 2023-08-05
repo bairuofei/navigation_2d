@@ -1,6 +1,7 @@
 #include <sstream>
 
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <nav2d_msgs/RobotPose.h>
 #include <nav2d_karto/MultiMapper.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -48,6 +49,7 @@ MultiMapper::MultiMapper()
 	mVerticesPublisher = mapperNode.advertise<visualization_msgs::Marker>("vertices", 1, true);
 	mClosureEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("closure_edges", 1, true);
 	mOdomEdgesPublisher = mapperNode.advertise<visualization_msgs::Marker>("odom_edges", 1, true);
+	mColoredEdgePublisher = mapperNode.advertise<visualization_msgs::MarkerArray>("colored_edges", 1, true);
 	mPosePublisher = robotNode.advertise<geometry_msgs::PoseStamped>("localization_result", 1, true);
 
 	mPoseGraphIdxSub = robotNode.subscribe("pose_graph_idx", 5, &MultiMapper::handlePoseGraphIdx, this);
@@ -411,7 +413,8 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 			
 			// Publish via extra topic
 			nav2d_msgs::RobotPose other;
-			other.header.stamp = ros::Time::now();
+			// other.header.stamp = ros::Time::now();
+			other.header.stamp = scan->header.stamp;
 			other.header.frame_id = mMapFrame;
 			other.robot_id = mRobotID;
 			other.pose.x = laserScan->GetCorrectedPose().GetX();
@@ -502,6 +505,7 @@ bool MultiMapper::sendMap()
 		visualization_msgs::Marker marker;
 		marker.header.frame_id = mMapFrame;
 		marker.header.stamp = ros::Time();
+		marker.ns = "mapper";
 		marker.id = 0;
 		marker.type = visualization_msgs::Marker::SPHERE_LIST;
 		marker.action = visualization_msgs::Marker::ADD;
@@ -549,7 +553,8 @@ bool MultiMapper::sendMap()
 		karto::MapperGraph::EdgeList edges = mMapper->GetGraph()->GetEdges();
 		marker.header.frame_id = mMapFrame;
 		marker.header.stamp = ros::Time();
-		marker.id = 0;
+		marker.ns = "mapper";
+		marker.id = 1;
 		marker.type = visualization_msgs::Marker::LINE_LIST;
 		marker.scale.x = 0.02;
 		marker.color.a = 1.0;
@@ -562,7 +567,8 @@ bool MultiMapper::sendMap()
 		visualization_msgs::Marker connect_marker;
 		connect_marker.header.frame_id = mMapFrame;
 		connect_marker.header.stamp = ros::Time();
-		connect_marker.id = 1;
+		connect_marker.ns = "mapper";
+		connect_marker.id = 2;
 		connect_marker.type = visualization_msgs::Marker::LINE_LIST;
 		connect_marker.action = visualization_msgs::Marker::ADD;
 		connect_marker.pose.position.x = 0;
@@ -578,6 +584,15 @@ bool MultiMapper::sendMap()
 		connect_marker.color.g = 0.0;
 		connect_marker.color.b = 0.0;
 		connect_marker.points.resize((vertices.Size() - 1) * 2);
+
+		// Marker for pose graph edges with D-opt weight
+		std::vector<double> detCovariances;
+		double maxDet = 0;
+		double minDet = std::numeric_limits<double>::max();
+		visualization_msgs::MarkerArray marker_array;
+
+
+
 		
 		int vertexIndex = 0;
 		int p = 0, q = 0;
@@ -594,6 +609,47 @@ bool MultiMapper::sendMap()
 				connect_marker.points[2*p+1].z = 0;	
 				p++;
 				vertexIndex++;
+
+				// TODO: Publish colored marker according the covariance
+				std::vector<double> cov = edges[i]->GetCovarianceVector();
+				Eigen::Matrix3d matrix;
+				matrix << cov[0], cov[1], cov[2],
+						  cov[3], cov[4], cov[5],
+						  cov[6], cov[7], cov[8];
+				double determinant = matrix.inverse().determinant();
+				maxDet = std::max(maxDet, determinant);
+				minDet = std::min(minDet, determinant);
+				detCovariances.push_back(determinant);
+
+				// Add colored edge markers
+				visualization_msgs::Marker marker2;
+				marker2.header.frame_id = "map";
+				marker2.header.stamp = ros::Time::now();
+				marker2.ns = "colored_edge";
+				marker2.type = visualization_msgs::Marker::LINE_STRIP;
+				marker2.action = visualization_msgs::Marker::ADD;
+				marker2.scale.x = 0.15;
+				marker2.lifetime = ros::Duration();
+				marker2.pose.position.x = 0;
+				marker2.pose.position.y = 0;
+				marker2.pose.position.z = 0;
+				marker2.pose.orientation.x = 0.0;
+				marker2.pose.orientation.y = 0.0;
+				marker2.pose.orientation.z = 0.0;
+				marker2.pose.orientation.w = 1.0;
+				// Line segment
+				marker2.id = i;
+				marker2.color.a = 1.0;
+				geometry_msgs::Point p1_1, p2_1;
+				p1_1.x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
+				p1_1.y = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetY();
+				p1_1.z = 0.0;
+				p2_1.x = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetX();
+				p2_1.y = edges[i]->GetTarget()->GetVertexObject()->GetCorrectedPose().GetY();
+				p2_1.z = 0.0;
+				marker2.points.push_back(p1_1);
+				marker2.points.push_back(p2_1);
+				marker_array.markers.push_back(marker2);
 			}
 			else{
 				marker.points[2*q].x = edges[i]->GetSource()->GetVertexObject()->GetCorrectedPose().GetX();
@@ -606,6 +662,21 @@ bool MultiMapper::sendMap()
 				q++;
 			}
 		}
+
+		// Coloring the edges
+		for(int j = 0; j < marker_array.markers.size(); j++){
+			double determinant = detCovariances[j];
+			double normalized_det;
+			// FIXME: The value is donimated by the maxDet
+			if (maxDet <= minDet)
+				normalized_det = 1;
+			else 
+				normalized_det = (determinant - minDet) / (maxDet - minDet);
+			marker_array.markers[j].color.b = normalized_det;
+			marker_array.markers[j].color.r = 1 - normalized_det;
+		}
+
+		mColoredEdgePublisher.publish(marker_array);
 
 		mClosureEdgesPublisher.publish(marker);
 		mOdomEdgesPublisher.publish(connect_marker);  // Path do not need to be published repeatedly.

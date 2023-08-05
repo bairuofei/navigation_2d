@@ -19,6 +19,8 @@
 
 #include <OpenKarto/OpenKarto.h>
 
+#include <Eigen/Dense>
+
 #include <string>
 #include <map>
 
@@ -73,6 +75,7 @@ private:
 	ros::Publisher mPosePublisher;
 	ros::Publisher mOtherRobotsPublisher;
 	ros::Publisher mPathPublisher;  // SLAM path after pgo
+	ros::Publisher mColoredEdgePublisher; // publish colored edges, weighted by covariance matrix
 	ros::Subscriber mLaserSubscriber;
 	ros::Subscriber mScanSubscriber;
 	ros::Subscriber mInitialPoseSubscriber;
