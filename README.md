@@ -8,6 +8,6 @@ Documentation and Tutorials can be found in the [ROS-Wiki](http://wiki.ros.org/n
 ## Main modifications
 Main functions of this package is not changed. The modifications mainly include:
 1. Add ros publishers for SLAM pose graph visualization;
-2. Improve frontier-based method for frontier checking;
+2. Improve frontier-based method for better frontier checking;
 3. Record waypoint planning time in fronter-based method.
 
