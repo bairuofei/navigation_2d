@@ -403,7 +403,7 @@ void MultiMapper::receiveLaserScan(const sensor_msgs::LaserScan::ConstPtr& scan)
 			ros::WallDuration d = ros::WallTime::now() - mLastMapUpdate;
 			if(mMapUpdateRate > 0 && d.toSec() > mMapUpdateRate)
 			{
-				sendMap();
+				sendMap();   // Here will send slam pose path to /slam_path
 				publishPoseGraph();  // Publish vertices and edges of pose graph.
 			}
 
@@ -547,6 +547,7 @@ bool MultiMapper::sendMap()
 		}
 		mVerticesPublisher.publish(marker);
 
+        // Publish topic /slam_path
 		mPathPublisher.publish(pathAftPgo);  // Up-to-date pose estimation of robot, to store the slam path
 		
 		// Publish the edges
@@ -556,14 +557,14 @@ bool MultiMapper::sendMap()
 		marker.ns = "mapper";
 		marker.id = 1;
 		marker.type = visualization_msgs::Marker::LINE_LIST;
-		marker.scale.x = 0.02;
+		marker.scale.x = 0.05;  // 0.02
 		marker.color.a = 1.0;
 		marker.color.r = 0.0;
 		marker.color.g = 0.0;
 		marker.color.b = 1.0;
 		marker.points.resize((edges.Size() - vertices.Size() + 1) * 2);
 
-		// Marker for connecting continous vertices
+		// Marker for odometry edge
 		visualization_msgs::Marker connect_marker;
 		connect_marker.header.frame_id = mMapFrame;
 		connect_marker.header.stamp = ros::Time();
@@ -578,8 +579,8 @@ bool MultiMapper::sendMap()
 		connect_marker.pose.orientation.y = 0.0;
 		connect_marker.pose.orientation.z = 0.0;
 		connect_marker.pose.orientation.w = 1.0;
-		connect_marker.scale.x = 0.15;
-		connect_marker.color.a = 1.0;
+		connect_marker.scale.x = 0.3;    // 0.15
+ 		connect_marker.color.a = 1.0;
 		connect_marker.color.r = 1.0;
 		connect_marker.color.g = 0.0;
 		connect_marker.color.b = 0.0;
@@ -628,7 +629,7 @@ bool MultiMapper::sendMap()
 				marker2.ns = "colored_edge";
 				marker2.type = visualization_msgs::Marker::LINE_STRIP;
 				marker2.action = visualization_msgs::Marker::ADD;
-				marker2.scale.x = 0.15;
+				marker2.scale.x = 0.3; // 0.15
 				marker2.lifetime = ros::Duration();
 				marker2.pose.position.x = 0;
 				marker2.pose.position.y = 0;

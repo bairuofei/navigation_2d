@@ -4,6 +4,10 @@
 #include <ros/ros.h>
 #include <nav2d_navigator/ExplorationPlanner.h>
 
+#include <sstream>
+#include <fstream>
+#include <iostream>
+
 class NearestFrontierPlanner : public ExplorationPlanner
 {
 	public:
@@ -32,6 +36,10 @@ class NearestFrontierPlanner : public ExplorationPlanner
 		void findFrontiers(GridMap* map, unsigned int start);
 		void findCluster(GridMap* map, unsigned int startCell);
 		void publishFrontier(GridMap* map, unsigned int& mFrontierCells, FrontierList& mFrontiers);
+
+        bool savePlanTime();
+        double mPlanTimeRecord;  // Record the time used in planning
+        std::string mSavePlanTimePath;
 
 };
 

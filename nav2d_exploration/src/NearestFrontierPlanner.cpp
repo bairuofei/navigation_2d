@@ -21,6 +21,17 @@ NearestFrontierPlanner::NearestFrontierPlanner()
 	mFrontierPublisher = nh.advertise<visualization_msgs::Marker>("/Navigator/frontiers", 1, true);
 	ROS_INFO("NearestFrontierPlanner start!");
 	finished_pub = nh.advertise<std_msgs::Bool>("/finished_topic", 10);
+
+    std::string defaultPath = " ";
+    nh.param("/Navigator/save_path_plan_time", mSavePlanTimePath, defaultPath);
+
+    std::ofstream outfile(mSavePlanTimePath, std::ios_base::trunc); // append
+    if (outfile.is_open()){
+        outfile.close(); // Close file
+    } else {
+        ROS_WARN("Unable to open file at mSavePlanTimePath.");
+    }
+    mPlanTimeRecord = 0;
 }
 
 NearestFrontierPlanner::~NearestFrontierPlanner()
@@ -28,8 +39,29 @@ NearestFrontierPlanner::~NearestFrontierPlanner()
 	
 }
 
+bool NearestFrontierPlanner::savePlanTime() {
+    if (mSavePlanTimePath == " ") {
+        ROS_WARN("Do not set mSavePlanTimePath.");
+        return false;
+    }
+
+    std::ofstream outfile(mSavePlanTimePath, std::ios_base::app); // append
+    if (outfile.is_open()){
+        outfile << std::fixed << std::setprecision(2) << mPlanTimeRecord << std::endl;
+        outfile.close(); // Close file
+        return true;
+    } else {
+        ROS_WARN("Unable to open file at mSavePlanTimePath.");
+        return false;
+    }
+}
+
 int NearestFrontierPlanner::findExplorationTarget(GridMap* map, unsigned int start, unsigned int &goal)
 {
+    bool saveTime = this->savePlanTime();
+    if (!saveTime) 
+        ROS_ERROR("save time doesnot run. path: %s", mSavePlanTimePath.c_str());
+    ros::Time startPlanTime = ros::Time::now();
 
 	// Frontier Calculation
     removeSmallUnknownCells(map);
@@ -48,6 +80,8 @@ int NearestFrontierPlanner::findExplorationTarget(GridMap* map, unsigned int sta
 		std_msgs::Bool msg;
 		msg.data = true;
 		finished_pub.publish(msg);
+        ros::Duration planDuration = ros::Time::now() - startPlanTime;
+        mPlanTimeRecord = planDuration.toSec();
 		return EXPL_FINISHED;
 	}
 	unsigned int target_index;
@@ -67,8 +101,12 @@ int NearestFrontierPlanner::findExplorationTarget(GridMap* map, unsigned int sta
 	}
 	if (target_index >= 0){
 		goal = target_index;
+        ros::Duration planDuration = ros::Time::now() - startPlanTime;
+        mPlanTimeRecord = planDuration.toSec();
 		return EXPL_TARGET_SET;
 	}
+    ros::Duration planDuration = ros::Time::now() - startPlanTime;
+    mPlanTimeRecord = planDuration.toSec();
 	return EXPL_FAILED;
 
 	// // Create some workspace for the wavefront algorithm
