@@ -41,7 +41,10 @@ const karto::ScanSolver::IdPoseVector& SpaSolver::GetCorrections() const
 }
 
 void SpaSolver::Compute()
-{
+{   
+    if (ros::Time::now() - mLastSPA < ros::Duration(2.0)) {
+        return;
+    }
 	corrections.Clear();
 	typedef std::vector<Node2d, Eigen::aligned_allocator<Node2d> > NodeVector;
 
