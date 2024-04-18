@@ -37,7 +37,7 @@ namespace karto
     {
       throw Exception("Resolution cannot be 0");
     }
-
+    // These two parameters effect the mapping results
     m_pMinPassThrough = new Parameter<kt_int32u>(NULL, "MinPassThrough", "", "", 3); // 2
     m_pOccupancyThreshold = new Parameter<kt_double>(NULL, "OccupancyThreshold", "", "", 0.3); // 0.1
 
